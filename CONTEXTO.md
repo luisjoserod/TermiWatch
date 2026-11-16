@@ -60,6 +60,10 @@ imita una esfera, y se abre desde una complicación o con "Volver a la esfera �
 
 ---
 
+**Estado (16 nov 2026):** el servicio automático se **desactivó** a petición del usuario. Las instalaciones
+se hacen a mano con `autoinstall.sh --force`. Motivo: sus intentos cada hora con el reloj dormido acababan
+invalidando la confianza entre el Mac y el reloj o dejando instalaciones atascadas.
+
 ## 4. Ocultar la hora del sistema (lo más difícil)
 
 En watchOS 10 y posteriores, la hora de arriba a la derecha aparece sobre cualquier app de terceros.

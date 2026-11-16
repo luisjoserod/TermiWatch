@@ -22,6 +22,25 @@ Historial, decisiones, intentos fallidos e ideas pendientes: [CONTEXTO.md](CONTE
 | Batería | Sin GPS; en modo siempre activo redibuja una vez por minuto y sin segundos; consultas solo si los datos están viejos. |
 | Firma | Bundle IDs `com.luisjoserod96.*`, Team `7RBUM96B5C`, mínimo watchOS 9. Se quitó HealthKit "Verifiable Health Records", que la cuenta gratuita no permite. |
 
+## Modo actual: instalación manual
+
+El servicio automático (por cable y por Wi-Fi) está **desactivado**, porque sus intentos repetidos con el
+reloj dormido acababan dejando el reloj en mal estado. Las renovaciones se hacen a mano:
+
+```bash
+zsh ~/Library/Application\ Support/TermiWatchAuto/autoinstall.sh --force
+```
+
+Este comando compila, instala en el iPhone y después en el reloj. Para que llegue al reloj, tiene que estar
+**desbloqueado y en la misma Wi-Fi**. Con la cuenta gratuita hay que repetirlo **cada menos de 7 días**.
+
+Con la **cuenta gratuita**, el reloj **no acepta la app desde la app Watch del iPhone**: solo desde el Mac.
+No uses "Instalar" ni "Mostrar app en el Apple Watch" en el iPhone, porque deja la app atascada en
+"Instalando". Para desatascarla:
+`xcrun devicectl device uninstall app --device 00008310-000548400E88A01E com.luisjoserod96.TermiWatch.watchkitapp`
+
+Para volver a activar el servicio automático, ejecuta `./tools/setup.sh 7RBUM96B5C`.
+
 ## Instalación desde cero en un Mac
 
 ### 1. Pasos manuales (solo tú puedes hacerlos)
@@ -59,5 +78,5 @@ zsh ~/Library/Application\ Support/TermiWatchAuto/autoinstall.sh --force
 - **Si cambias de Apple ID:** ejecuta `setup.sh` con el nuevo Team ID. Si Xcode dice que el bundle ID ya está en uso, sustituye `com.luisjoserod96` en `TermiWatch.xcodeproj/project.pbxproj` y en los dos `Info.plist` de WatchKit.
 - **Si cambias el icono:** quita y vuelve a poner la complicación en la esfera, porque watchOS guarda el icono en caché.
 - **Registro:** `~/Library/Application Support/TermiWatchAuto/autoinstall.log`
-- **Desactivar el servicio:** `launchctl bootout gui/$(id -u)/com.luisjoserod.termiwatch-autoinstall`
+- **Desactivar el servicio:** `launchctl bootout gui/$(id -u)/com.luisjoserod.termiwatch-autoinstall` y borrar `~/Library/LaunchAgents/com.luisjoserod.termiwatch-autoinstall.plist`
 - **Cambiar la ciudad:** `weatherLatitude` / `weatherLongitude` en `TemperatureNotifier.swift`.
