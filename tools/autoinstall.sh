@@ -131,10 +131,13 @@ fi
 
 # --- Build and install -----------------------------------------------------
 TEAM=$(cat "$BASE/team_id" 2>/dev/null)
+# Unique, increasing build number so iOS/watchOS treat every install as an update
+# (with a constant "1" the Watch app on the iPhone fails to install/update it).
 if ! xcodebuild -project "$SRC/TermiWatch.xcodeproj" -scheme TermiWatch -configuration Release \
      -destination "id=$UDID" -derivedDataPath "$BUILD" \
      -allowProvisioningUpdates -allowProvisioningDeviceRegistration \
-     DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic build >> "$LOG" 2>&1; then
+     DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic \
+     CURRENT_PROJECT_VERSION="$(date +%Y%m%d%H%M)" build >> "$LOG" 2>&1; then
   log "Build failed ($MODE)"
   notify "Falló la compilación de TermiWatch. Mira autoinstall.log"
   [[ "$MODE" == "usb" ]] && rm -f "$STATE"
