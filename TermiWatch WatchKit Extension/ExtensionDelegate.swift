@@ -2,11 +2,12 @@ import WatchKit
 
 class ExtensionDelegate: NSObject, WKExtensionDelegate {
   func applicationDidFinishLaunching() {
-    // Perform any final initialization of your application.
+    ChargeTracker.sample()
+    ChargeTracker.scheduleBackgroundSample()
   }
 
   func applicationDidBecomeActive() {
-    // Restart any tasks that were paused (or not yet started) while the application was inactive. If the application was previously in the background, optionally refresh the user interface.
+    ChargeTracker.sample()
   }
 
   func applicationWillResignActive() {
@@ -20,7 +21,9 @@ class ExtensionDelegate: NSObject, WKExtensionDelegate {
       // Use a switch statement to check the task type
       switch task {
       case let backgroundTask as WKApplicationRefreshBackgroundTask:
-        // Be sure to complete the background task once you’re done.
+        // Hourly wake-up: record battery state for [UPTM], then reschedule.
+        ChargeTracker.sample()
+        ChargeTracker.scheduleBackgroundSample()
         backgroundTask.setTaskCompletedWithSnapshot(false)
       case let snapshotTask as WKSnapshotRefreshBackgroundTask:
         // Snapshot tasks have a unique completion call, make sure to set your expiration date

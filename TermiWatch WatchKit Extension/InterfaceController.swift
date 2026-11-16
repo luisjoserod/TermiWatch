@@ -1,6 +1,5 @@
 import Foundation
 import HealthKit
-import PMKCoreLocation
 import PMKHealthKit
 import PromiseKit
 import Swizzle
@@ -92,7 +91,7 @@ struct ActivityRingColors {
 }
 
 struct BatteryStateColors {
-  static let normal = UIColor(red: 0.569, green: 0.831, blue: 0.384, alpha: 1.0)
+  static let normal = UIColor(red: 0.2, green: 1.0, blue: 0.25, alpha: 1.0)
   static let low = UIColor.red
 }
 
@@ -180,30 +179,6 @@ class InterfaceController: WKInterfaceController {
 
   override func awake(withContext context: Any?) {
     super.awake(withContext: context)
-
-    // MARK: - Temperature
-
-    firstly {
-      CLLocationManager.requestAuthorization()
-    }.done { _ in
-      let temperatureFormatter = MeasurementFormatter()
-      localizedTemperatureStyle(temperatureFormatter)
-
-      NotificationCenter.default.addObserver(
-        forName: TemperatureNotifier.TemperatureDidChangeNotification,
-        object: nil,
-        queue: nil
-      ) { [weak self] notification in
-        let temperature = notification.object as! Measurement<UnitTemperature>
-        self?.temperatureLabel.setText(
-          temperatureFormatter.string(from: temperature)
-        )
-      }
-
-      TemperatureNotifier.shared.start()
-    }.catch {
-      print("Error:", $0)
-    }
 
     // MARK: - Health
 

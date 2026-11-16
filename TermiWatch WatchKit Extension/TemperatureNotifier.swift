@@ -1,24 +1,40 @@
-import CoreLocation
 import Foundation
-import PMKCoreLocation
 import PMKFoundation
 import PromiseKit
 
-func OpenWeatherMapAPIKey() -> String {
-  return Bundle.main.object(
-    forInfoDictionaryKey: "OpenWeatherMapAPIKey"
-  ) as! String
+// Weather from Open-Meteo (free, no API key): current temperature, WMO weather
+// code, and precipitation probability for the next 3 hours, in one request.
+// Location is fixed (no Location Services): Maracaibo, Zulia, Venezuela.
+
+let weatherLatitude = 10.64
+let weatherLongitude = -71.61
+
+public struct WeatherInfo: Equatable {
+  let temperature: Measurement<UnitTemperature>
+  let condition: String  // short English word, max 5 chars
+  let rainChance: Int?   // max precipitation probability over the next 3 h
 }
 
-func OpenWeatherMapURL(
-  coordinate: CLLocationCoordinate2D,
-  apiKey: String = OpenWeatherMapAPIKey()
-) -> URL {
+func shortCondition(wmoCode code: Int) -> String {
+  switch code {
+  case 0, 1: return "Clear"
+  case 2, 3: return "Cloud"
+  case 45, 48: return "Fog"
+  case 51...67, 80...82: return "Rain"
+  case 71...77, 85, 86: return "Snow"
+  case 95...99: return "Storm"
+  default: return "?"
+  }
+}
+
+func OpenMeteoURL() -> URL {
+  let lat = String(format: "%.2f", weatherLatitude)
+  let lon = String(format: "%.2f", weatherLongitude)
   return URL(
-    string: "https://api.openweathermap.org/data/2.5/weather?"
-      + "lat=\(coordinate.latitude)"
-      + "&lon=\(coordinate.longitude)"
-      + "&APPID=\(apiKey)"
+    string: "https://api.open-meteo.com/v1/forecast?"
+      + "latitude=\(lat)&longitude=\(lon)"
+      + "&current=temperature_2m,weather_code"
+      + "&hourly=precipitation_probability&forecast_hours=3&timezone=auto"
   )!
 }
 
@@ -27,34 +43,37 @@ let disabledCachingConfig: (URLSessionConfiguration) -> Void = {
   $0.urlCache = nil
 }
 
-struct OpenWeatherMapResponse: Codable {
-  struct MainResponse: Codable {
-    let temp: Double
+struct OpenMeteoResponse: Codable {
+  struct Current: Codable {
+    let temperature_2m: Double
+    let weather_code: Int
   }
-
-  let main: MainResponse
+  struct Hourly: Codable {
+    let precipitation_probability: [Int?]
+  }
+  let current: Current
+  let hourly: Hourly?
 }
 
-func temperatureInKelvin(at coordinate: CLLocationCoordinate2D)
-  -> Promise<Measurement<UnitTemperature>> {
+func fetchWeather() -> Promise<WeatherInfo> {
   return Promise { seal in
     let sessionConfig = URLSessionConfiguration.default
     disabledCachingConfig(sessionConfig)
 
     URLSession(configuration: sessionConfig).dataTask(
       .promise,
-      with: OpenWeatherMapURL(coordinate: coordinate)
+      with: OpenMeteoURL()
     ).compactMap {
-      try JSONDecoder().decode(OpenWeatherMapResponse.self, from: $0.data)
+      try JSONDecoder().decode(OpenMeteoResponse.self, from: $0.data)
     }.done {
-      let temperatureInKelvin = Measurement(
-        value: $0.main.temp,
-        unit: UnitTemperature.kelvin
-      )
-
-      seal.fulfill(temperatureInKelvin)
+      let chances = $0.hourly?.precipitation_probability.compactMap { $0 } ?? []
+      seal.fulfill(WeatherInfo(
+        temperature: Measurement(value: $0.current.temperature_2m, unit: .celsius),
+        condition: shortCondition(wmoCode: $0.current.weather_code),
+        rainChance: chances.max()
+      ))
     }.catch {
-      print("Error:", $0)
+      seal.reject($0)
     }
   }
 }
@@ -67,44 +86,42 @@ public class TemperatureNotifier {
   public static let shared = TemperatureNotifier()
   private init() {}
 
-  public private(set) var temperature: Measurement<UnitTemperature>?
-  private var timer: Timer?
+  public private(set) var weather: WeatherInfo?
 
-  public var isStarted: Bool {
-    return timer != nil && timer!.isValid
+  private var lastSuccess: Date?
+  private var fetching = false
+
+  // No timer: the app calls refreshIfStale() when it opens or becomes active.
+
+  // Called when the app becomes active: only hits the network if the last
+  // successful reading is older than maxAge (or there is none yet).
+  public func refreshIfStale(maxAge: TimeInterval = 1800) {
+    if let last = lastSuccess, Date().timeIntervalSince(last) < maxAge { return }
+    fetch()
   }
 
-  public func start(withTimeInterval interval: TimeInterval = 600) {
-    timer?.invalidate()
-
-    timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) {
-      [weak self] _ in
-      CLLocationManager.requestLocation().lastValue.then {
-        temperatureInKelvin(at: $0.coordinate)
-      }.done { currentTemperature in
-        if currentTemperature == self?.temperature {
-          return
-        }
-
-        self?.temperature = currentTemperature
-
-        NotificationCenter.default.post(
-          Notification(
-            name: TemperatureNotifier.TemperatureDidChangeNotification,
-            object: self?.temperature,
-            userInfo: nil
-          )
-        )
-      }.catch {
-        print("Error:", $0.localizedDescription)
+  private func fetch() {
+    guard !fetching else { return }
+    fetching = true
+    fetchWeather().done { [weak self] current in
+      self?.lastSuccess = Date()
+      if current == self?.weather {
+        return
       }
+
+      self?.weather = current
+
+      NotificationCenter.default.post(
+        Notification(
+          name: TemperatureNotifier.TemperatureDidChangeNotification,
+          object: self?.weather,
+          userInfo: nil
+        )
+      )
+    }.ensure { [weak self] in
+      self?.fetching = false
+    }.catch {
+      print("Error:", $0.localizedDescription)
     }
-
-    timer!.fire()
-  }
-
-  public func stop() {
-    timer?.invalidate()
-    timer = nil
   }
 }

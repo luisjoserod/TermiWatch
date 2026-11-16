@@ -24,8 +24,6 @@
 	<true/>
 	<key>NSHealthShareUsageDescription</key>
 	<string>Your health records will be used to display activity data.</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Your location data will be used to display weather data. </string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
