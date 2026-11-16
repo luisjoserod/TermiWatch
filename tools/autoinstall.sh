@@ -110,7 +110,11 @@ install_watch() {  # returns 0 on success; retries a few times (watch may be asl
   [[ -n "$WATCH" ]] || return 1
   for attempt in 1 2 3; do
     xcrun devicectl device install app --device "$WATCH" "$APP/Watch/TermiWatch WatchKit App.app" >> "$LOG" 2>&1 && return 0
-    sleep 20
+    # After failed attempts the watch can end up "rejecting the connection"
+    # (stale developer pairing). Re-requesting the pairing fixes it.
+    log "Watch install failed; re-pairing with the watch"
+    xcrun devicectl manage pair --device "$WATCH" --timeout 60 >> "$LOG" 2>&1
+    sleep 10
   done
   return 1
 }
