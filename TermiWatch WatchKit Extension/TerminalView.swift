@@ -19,7 +19,7 @@ private enum TermColors {
   static let move = Color(red: 0.2, green: 1.0, blue: 0.25)
   static let stand = Color(red: 0.325, green: 0.647, blue: 0.984)
   static let steps = Color(red: 0.588, green: 0.525, blue: 0.961)
-  static let sleep = Color(red: 1.0, green: 0.1, blue: 0.1)
+  static let sleep = Color(red: 0.2, green: 0.9, blue: 0.95)  // cyan
 }
 
 final class TerminalModel: ObservableObject {

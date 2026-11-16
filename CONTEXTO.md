@@ -90,7 +90,7 @@ user@watch:~ $ now
 [BATT][####.] 80%          verde neón (rojo ≤ 20 %)
 [RING]8 • 0 • 0            rojo • verde neón • azul (kcal • min • h)
 [STEP]0 steps              morado
-[SLEP]7h32m                rojo vivo
+[SLEP]7h32m                cian
 user@watch:~ $
 ```
 

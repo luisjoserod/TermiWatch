@@ -16,7 +16,7 @@ Historial, decisiones, intentos fallidos e ideas pendientes: [CONTEXTO.md](CONTE
 | `WTHR` | Open-Meteo (gratis, sin clave). Ubicación fija: **Maracaibo** (10.64, -71.61), sin permiso de ubicación. Formato `29°, Cloud 6%`: temperatura, estado y probabilidad máxima de lluvia en las próximas 3 h. |
 | `SLEP` | Último periodo de sueño de Salud, por ejemplo `7h32m`, o `-` si no hay. Deja de consultar en cuanto encuentra el sueño de la mañana. |
 | `RING` | `kcal • min • h`, con espacios. |
-| Colores | TIME/BATT/centro de RING en verde neón; DATE/final de RING en azul; SLEP en rojo vivo. |
+| Colores | TIME/BATT/centro de RING en verde neón; DATE/final de RING en azul; SLEP en cian. |
 | Complicación | ClockKit: icono `$_` para esferas a color y texto `$_` para esferas de un color. Al tocarla se abre la app. |
 | Iconos | Borde gris fino, cuadrado a sangre para que watchOS lo recorte en un círculo perfecto (`tools/make_icons.sh`). |
 | Batería | Sin GPS; en modo siempre activo redibuja una vez por minuto y sin segundos; consultas solo si los datos están viejos. |
