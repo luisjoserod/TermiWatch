@@ -42,10 +42,14 @@ print -r -- "$TEAM_ID" > "$BASE/team_id"
 sed -i '' -E "s/DEVELOPMENT_TEAM = [A-Z0-9\"]+;/DEVELOPMENT_TEAM = $TEAM_ID;/" \
   "$REPO/TermiWatch.xcodeproj/project.pbxproj"
 
-# iOS + watchOS device support for Xcode (several GB, only first time).
+# Minimum Xcode components: iOS + watchOS platforms, Apple Silicon variant only
+# (~11 GB). Both are required to build for real devices (the app embeds the
+# watch app). The simulator devices Xcode auto-creates are not needed.
 export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
-xcodebuild -downloadPlatform iOS || true
-xcodebuild -downloadPlatform watchOS || true
+ARCH=$([[ "$(uname -m)" == "arm64" ]] && echo arm64 || echo universal)
+xcodebuild -downloadPlatform iOS -architectureVariant "$ARCH" || true
+xcodebuild -downloadPlatform watchOS -architectureVariant "$ARCH" || true
+xcrun simctl delete all 2>/dev/null || true
 
 mkdir -p "$HOME/Library/LaunchAgents"
 sed "s#__HOME__#$HOME#g" "$REPO/tools/$LABEL.plist" > "$PLIST"

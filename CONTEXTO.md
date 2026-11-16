@@ -12,7 +12,7 @@ iPhone 16 Pro con iOS 18.7, Apple Watch Series 9 de 45 mm con watchOS 11.6, Appl
 ## 1. Objetivo
 
 - Instalar TermiWatch, una "esfera" de terminal para Apple Watch de 2018–2020, en un reloj actual.
-- Que se reinstale sola al **enchufar el iPhone al Mac**, porque con una cuenta gratuita la firma caduca a los 7 días.
+- Que se renueve sola, **por cable o por Wi-Fi**, porque con una cuenta gratuita la firma caduca a los 7 días.
 - Personalizar su aspecto y sus datos sin gastar batería.
 
 TermiWatch **no es una esfera real**: Apple no permite esferas de terceros. Es una app que
@@ -25,7 +25,7 @@ imita una esfera, y se abre desde una complicación o con "Volver a la esfera �
 | Problema | Causa | Solución |
 | --- | --- | --- |
 | `xcodebuild` no funciona | Solo estaban las Command Line Tools | Instalar Xcode. Los scripts usan `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`, así que no hace falta `sudo xcode-select`. |
-| "iOS 26.2 is not installed" | Xcode no trae los componentes de dispositivo | `xcodebuild -downloadPlatform iOS` y `-downloadPlatform watchOS` (varios GB) |
+| "iOS 26.2 is not installed" | Desde Xcode 15, compilar para un dispositivo real exige el paquete de la plataforma, que incluye el simulador | `xcodebuild -downloadPlatform iOS -architectureVariant arm64` y lo mismo para `watchOS` (unos 11 GB en total). watchOS es obligatorio porque la app incrusta la del reloj. No hacen falta los simuladores creados (`xcrun simctl delete all`). |
 | No aparece el Team | Xcode no había descargado los datos de la cuenta | Elegir el Team una vez en la interfaz de Xcode (Signing & Capabilities) |
 | "Developer Mode disabled" | El iPhone no tenía activado el modo desarrollador | Ajustes → Privacidad y seguridad → Modo de desarrollador |
 | "Personal development teams… do not support HealthKit Access (Verifiable Health Records)" | Los entitlements incluían `com.apple.developer.healthkit.access` vacío | Eliminar esa clave y dejar solo `com.apple.developer.healthkit` |
@@ -42,12 +42,15 @@ imita una esfera, y se abre desde una complicación o con "Volver a la esfera �
 ## 3. Auto-instalación (`tools/autoinstall.sh` + launchd)
 
 - Un *LaunchAgent* ejecuta el script cada 10 s. Comprobar `ioreg -p IOUSB` no cuesta casi nada.
-- Al detectar una **conexión nueva** de un iPhone, si han pasado **3 días o más** desde la última instalación:
+- **Por cable:** al detectar una **conexión nueva** de un iPhone, si han pasado **3 días o más** desde la última instalación.
+- **Por Wi-Fi:** una vez por hora, si han pasado **4 días o más** y `devicectl` ve el iPhone emparejado en la red local (`available (paired)`). Con el cable desenchufado se compila e instala igual.
+- Si el reloj no responde (dormido o sin Wi-Fi), se crea `.watch_pending` y se reintenta **solo el reloj** cada hora hasta conseguirlo, porque la app del reloj también caduca a los 7 días.
+- En los dos casos:
   1. `xcodebuild` con firma automática (`-allowProvisioningUpdates -allowProvisioningDeviceRegistration`).
   2. `devicectl device install app` en el iPhone.
   3. `devicectl device install app` directamente en el reloj, con `Watch/TermiWatch WatchKit App.app`. El iPhone tardaba en pasarla por su cuenta.
   4. Notificación en el Mac con `osascript`.
-- `--force` se salta las comprobaciones de conexión nueva y de 3 días.
+- `--force` instala ya, por cable si está conectado o, si no, por Wi-Fi.
 - Se usa un candado (`.lock`) para evitar ejecuciones dobles. **Si el script se interrumpe a la fuerza, el candado puede quedarse** y hay que borrarlo a mano: `rmdir ~/Library/Application\ Support/TermiWatchAuto/.lock`.
 - `devicectl list devices` usa identificadores de CoreDevice, pero `xcodebuild -destination id=` necesita el **UDID de hardware**. El script lo saca de `--json-output` → `hardwareProperties.udid`.
 
@@ -87,7 +90,6 @@ user@watch:~ $ now
 [RING]8 • 0 • 0            rojo • verde neón • azul (kcal • min • h)
 [STEP]0 steps              morado
 [SLEP]7h32m                rojo vivo
-[UPTM]up 1d 07h            amarillo
 user@watch:~ $
 ```
 
@@ -114,13 +116,12 @@ user@watch:~ $
 ### SLEP, el sueño
 - Sustituye a L_HR (pulso), que el usuario tiene apagado para ahorrar batería.
 - Lee `sleepAnalysis` de las últimas 36 h, solo los valores de "dormido" (core, profundo, REM y sin especificar). Fusiona los solapamientos entre fuentes y agrupa en sesiones; una pausa de más de 3 h abre una sesión nueva. Muestra la última sesión o `-`.
-- Consulta como mucho cada 30 minutos y **deja de consultar hasta el día siguiente** cuando el sueño terminó hoy y hace al menos 2 h.
+- Se actualiza al momento con un `HKObserverQuery` sobre `sleepAnalysis`, en cuanto el reloj guarda una sesión de sueño. Además, mientras muestra `-` consulta en cada activación, y si no, como mucho cada 30 minutos.
+- **Deja de consultar hasta el día siguiente** cuando el sueño terminó hoy y hace al menos 2 h.
 - Si sale `-`, lo habitual es que no haya registro: el reloj estaba cargando o el seguimiento del sueño estaba apagado.
 
-### UPTM, tiempo desde la última carga
-- watchOS no da historial de batería. Se marca como "última carga" la hora en que se ve el reloj cargando o la batería más alta que en la lectura anterior.
-- Se lee al abrir la app, cada 5 minutos con la app abierta y **en segundo plano cada hora** (`scheduleBackgroundRefresh`), así que el margen de error es de aproximadamente una hora.
-- Muestra `-` hasta detectar la primera carga y `charging` mientras está en el cargador.
+### UPTM (eliminado)
+- Mostraba el tiempo desde la última carga, estimado al ver el reloj cargando o la batería subir, con una revisión en segundo plano cada hora. Se quitó porque al usuario no le gustaba, y con él se fue la tarea en segundo plano.
 
 ### RING y STEP
 - Un único `HKObserverQuery`, sobre la energía activa, refresca el resumen de anillos completo.
@@ -134,7 +135,6 @@ user@watch:~ $
 - **Modo siempre activo** (`isLuminanceReduced`): redibuja una vez por minuto y sin segundos. Con la muñeca levantada, una vez por segundo.
 - Sin temporizador del tiempo: solo al abrir o volver a la app, y solo si el dato tiene más de 30 minutos.
 - La batería se lee cada 5 minutos con la app abierta y al volver a ella.
-- UPTM se guarda en memoria; no se lee de `UserDefaults` cada segundo.
 - La complicación es estática (`timelineEndDate = .distantFuture`) y **no se recarga** en cada arranque.
 - **Descartado:** mantener la app siempre abierta con una sesión de entrenamiento falsa (`HKWorkoutSession`, el truco de *AnalogFace*). Gasta mucha batería y ensucia los datos de Actividad. Lo recomendado es *Ajustes → General → Volver a la esfera → Tras 1 hora*.
 

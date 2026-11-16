@@ -20,7 +20,6 @@ private enum TermColors {
   static let stand = Color(red: 0.325, green: 0.647, blue: 0.984)
   static let steps = Color(red: 0.588, green: 0.525, blue: 0.961)
   static let sleep = Color(red: 1.0, green: 0.1, blue: 0.1)
-  static let uptime = Color(red: 1.0, green: 0.85, blue: 0.2)
 }
 
 final class TerminalModel: ObservableObject {
@@ -30,8 +29,6 @@ final class TerminalModel: ObservableObject {
   @Published var rings: (Int, Int, Int)? = nil
   @Published var steps = "--"
   @Published var sleep = "-"
-  @Published var lastCharge: Date? = ChargeTracker.lastCharge
-  @Published var charging = ChargeTracker.isCharging
 
   private let healthStore = HKHealthStore()
   private var started = false
@@ -57,13 +54,6 @@ final class TerminalModel: ObservableObject {
     }
     TemperatureNotifier.shared.refreshIfStale()
 
-    // Last charge ([UPTM]): cache values instead of reading storage every second
-    NotificationCenter.default.addObserver(
-      forName: ChargeTracker.didChangeNotification, object: nil, queue: .main
-    ) { [weak self] _ in
-      self?.lastCharge = ChargeTracker.lastCharge
-      self?.charging = ChargeTracker.isCharging
-    }
 
     // Health
     let types = Set([
@@ -94,6 +84,17 @@ final class TerminalModel: ObservableObject {
         unit: .count(), options: .cumulativeSum, healthStore: self.healthStore
       ) { [weak self] v in DispatchQueue.main.async { self?.steps = "\(Int(v)) steps" } }
       self.refreshSleep(force: true)
+
+      // Re-read sleep as soon as the watch saves a sleep session (event-driven,
+      // no polling). Fires while the app is running or when it resumes.
+      if let sleepType = HKCategoryType.categoryType(forIdentifier: .sleepAnalysis) {
+        let observer = HKObserverQuery(sampleType: sleepType, predicate: nil) {
+          [weak self] _, completion, _ in
+          DispatchQueue.main.async { self?.refreshSleep(force: true) }
+          completion()
+        }
+        self.healthStore.execute(observer)
+      }
     }.catch { print("Error:", $0) }
 
     // Battery
@@ -105,7 +106,6 @@ final class TerminalModel: ObservableObject {
       guard info.state != .unknown else { return }
       self?.battery = batteryIndicatorString(percent: UInt(info.level))
       self?.batteryLow = info.level <= 20
-      ChargeTracker.sample()
     }
     BatteryInfoNotifier.shared.start()
   }
@@ -128,7 +128,9 @@ final class TerminalModel: ObservableObject {
   func refreshSleep(force: Bool = false) {
     let today = Calendar.current.startOfDay(for: Date())
     if !force, sleepDoneForDay == today { return }
-    if !force, let last = lastSleepRefresh, Date().timeIntervalSince(last) < 1800 { return }
+    // While nothing is shown yet ("-"), check on every activation: it is a fast
+    // local Health query. Otherwise at most every 30 min.
+    if !force, sleep != "-", let last = lastSleepRefresh, Date().timeIntervalSince(last) < 1800 { return }
     lastSleepRefresh = Date()
     guard let type = HKCategoryType.categoryType(forIdentifier: .sleepAnalysis) else { return }
     let now = Date()
@@ -252,10 +254,6 @@ struct TerminalView: View {
         row("[RING]", ringText)
         row("[STEP]", colored(model.steps, TermColors.steps))
         row("[SLEP]", colored(model.sleep, TermColors.sleep))
-        row("[UPTM]", colored(
-          ChargeTracker.uptimeString(now: context.date, lastCharge: model.lastCharge,
-                                     charging: model.charging),
-          TermColors.uptime))
         colored("user@watch:~ $ ", TermColors.label)
       }
       .font(.system(size: fontSize, design: .monospaced))
