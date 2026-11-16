@@ -4,6 +4,8 @@ Fork de [kuglee/TermiWatch](https://github.com/kuglee/TermiWatch), adaptado para
 un **Apple Watch Series 9 de 45 mm (watchOS 11)** emparejado con un **iPhone 16 Pro (iOS 18)**,
 instalado con una **Apple ID gratuita** (Personal Team).
 
+Historial, decisiones, intentos fallidos e ideas pendientes: [CONTEXTO.md](CONTEXTO.md).
+
 ## Qué cambia respecto al original
 
 | Área | Cambio |
